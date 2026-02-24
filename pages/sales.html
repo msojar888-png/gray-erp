@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GRAY ERP – المبيعات</title>
+
+  <!-- مهم: مسار نسبي لأننا داخل /pages -->
+  <link rel="stylesheet" href="../styles.css" />
+
+  <style>
+    .invoice-totals {
+      background: #f7f7f7;
+      border-radius: 14px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin: 5px 0;
+      gap: 12px;
+    }
+    .grand-total { font-size: 18px; font-weight: 900; color: #2b2b2b; }
+    .num { direction:ltr; text-align:left; font-variant-numeric: tabular-nums; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border: 1px solid #e6e6e6; padding: 8px; vertical-align: top; }
+    textarea { width:100%; box-sizing: border-box; }
+    .note { margin-top: 10px; }
+    @media print {
+      .noPrint { display: none !important; }
+      body { background: #fff !important; }
+      .card { box-shadow: none !important; border: none !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="noPrint">
+    <div class="head">
+      <div class="brand">
+        <div class="t">GRAY ERP – المبيعات</div>
+        <div class="s">إنشاء وتحرير فواتير البيع</div>
+      </div>
+      <div class="pill">
+        <span class="chip" id="onlineStatus">Offline</span>
+        <span class="chip" id="userDisplay"></span>
+        <button class="btn" id="btnBack">🔙 رجوع</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="hd">
+        <h2>فاتورة بيع جديدة</h2>
+        <div class="inline noPrint">
+          <button class="btn mini" id="btnNew">➕ جديد</button>
+          <button class="btn mini" id="btnPrint">🖨️ طباعة</button>
+        </div>
+      </div>
+
+      <div class="bd">
+        <!-- بيانات الفاتورة -->
+        <div class="row">
+          <div>
+            <label>العميل</label>
+            <select id="customerSelect"></select>
+          </div>
+          <div>
+            <label>المستودع</label>
+            <select id="warehouseSelect"></select>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>العملة</label>
+            <select id="currencySelect">
+              <option value="USD">دولار أمريكي (USD)</option>
+              <option value="SAR">ريال سعودي (SAR)</option>
+              <option value="YER">ريال يمني (YER)</option>
+            </select>
+          </div>
+          <div>
+            <label>سعر الصرف إلى USD</label>
+            <input type="number" id="exchangeRate" step="0.0001" value="1" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>تاريخ الإصدار</label>
+            <input type="date" id="issueDate" />
+          </div>
+          <div>
+            <label>تاريخ الاستحقاق</label>
+            <input type="date" id="dueDate" />
+          </div>
+        </div>
+
+        <!-- بنود الفاتورة -->
+        <div style="margin-top:20px">
+          <label>البنود</label>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>الوصف</th>
+                <th class="num">الكمية</th>
+                <th class="num">السعر</th>
+                <th class="num">ضريبة %</th>
+                <th class="num">الإجمالي</th>
+                <th class="noPrint"></th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+
+          <div class="noPrint" style="display:flex; gap:8px; justify-content:flex-end; margin-top:10px">
+            <button class="btn mini" id="btnAddLine">➕ إضافة بند</button>
+          </div>
+        </div>
+
+        <!-- المجاميع -->
+        <div class="invoice-totals">
+          <div class="totals-row">
+            <span>المجموع الفرعي (بعملة المستند)</span>
+            <span class="num" id="subtotalDoc">0.00</span>
+          </div>
+          <div class="totals-row">
+            <span>الضريبة (بعملة المستند)</span>
+            <span class="num" id="taxDoc">0.00</span>
+          </div>
+          <div class="totals-row grand-total">
+            <span>الإجمالي النهائي (بعملة المستند)</span>
+            <span class="num" id="grandDoc">0.00</span>
+          </div>
+          <div class="totals-row">
+            <span>الإجمالي (USD)</span>
+            <span class="num" id="grandBase">0.00</span>
+          </div>
+        </div>
+
+        <!-- ملاحظات -->
+        <div style="margin-top:12px">
+          <label>ملاحظات</label>
+          <textarea id="notes" rows="2"></textarea>
+        </div>
+
+        <!-- أزرار التحكم -->
+        <div class="noPrint" style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px">
+          <button class="btn" id="btnSaveDraft">💾 حفظ مسودة</button>
+          <button class="btn primary" id="btnApprove">✅ اعتماد</button>
+          <button class="btn primary" id="btnPost">🚀 ترحيل</button>
+        </div>
+
+        <div id="invoiceMessage" class="note" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </main>
+
+  <div id="printArea" style="display:none"></div>
+
+  <script type="module">
+    // ✅ مسارات نسبية لأن الملف داخل /pages
+    import {
+      STORES,
+      upsertDocument,
+      getDocument,
+      upsertLines,
+      listLinesByDocId,
+      enqueueChange,
+      listAll
+    } from "../db.js";
+
+    import { getDeviceId } from "../sync.js";
+    import { getCurrentUser, authFetch } from "../auth.js";
+
+    const ui = {
+      onlineStatus: document.getElementById("onlineStatus"),
+      userDisplay: document.getElementById("userDisplay"),
+      btnBack: document.getElementById("btnBack"),
+      btnNew: document.getElementById("btnNew"),
+      btnPrint: document.getElementById("btnPrint"),
+      customerSelect: document.getElementById("customerSelect"),
+      warehouseSelect: document.getElementById("warehouseSelect"),
+      currencySelect: document.getElementById("currencySelect"),
+      exchangeRate: document.getElementById("exchangeRate"),
+      issueDate: document.getElementById("issueDate"),
+      dueDate: document.getElementById("dueDate"),
+      itemsBody: document.getElementById("itemsBody"),
+      btnAddLine: document.getElementById("btnAddLine"),
+      subtotalDoc: document.getElementById("subtotalDoc"),
+      taxDoc: document.getElementById("taxDoc"),
+      grandDoc: document.getElementById("grandDoc"),
+      grandBase: document.getElementById("grandBase"),
+      notes: document.getElementById("notes"),
+      btnSaveDraft: document.getElementById("btnSaveDraft"),
+      btnApprove: document.getElementById("btnApprove"),
+      btnPost: document.getElementById("btnPost"),
+      invoiceMessage: document.getElementById("invoiceMessage"),
+      printArea: document.getElementById("printArea"),
+    };
+
+    // حالة الفاتورة
+    let currentInvoiceId = null;
+    const deviceId = (typeof getDeviceId === "function") ? getDeviceId() : ("DEV-" + Date.now());
+
+    // أدوات مساعدة
+    function money(n) { return Number(n || 0).toFixed(2); }
+    function round2(n) { return Math.round((Number(n) + Number.EPSILON) * 100) / 100; }
+    function esc(s) {
+      return (s || "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+    function nowIsoDate() {
+      const d = new Date();
+      const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+      return z.toISOString().slice(0, 10);
+    }
+    function uuid() {
+      if (crypto && crypto.randomUUID) return crypto.randomUUID();
+      return "id-" + Math.random().toString(16).slice(2) + "-" + Date.now();
+    }
+    function tempNumber() { return `TMP-${deviceId}-${Date.now()}`; }
+    function toast(msg, type = "info") {
+      ui.invoiceMessage.textContent = msg;
+      ui.invoiceMessage.style.color = (type === "error") ? "red" : "green";
+    }
+
+    // اتصال
+    function updateOnlineStatus() {
+      ui.onlineStatus.textContent = navigator.onLine ? "Online" : "Offline";
+      ui.onlineStatus.style.background = navigator.onLine ? "#e8f5e8" : "#fff3e0";
+    }
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    updateOnlineStatus();
+
+    // المستخدم
+    function updateUserDisplay() {
+      const user = (typeof getCurrentUser === "function") ? getCurrentUser() : null;
+      ui.userDisplay.textContent = user ? `${user.name} (${user.role})` : "غير مسجل";
+    }
+    updateUserDisplay();
+
+    // تحميل القوائم
+    async function loadLists() {
+      let customers = [];
+      let warehouses = [];
+      try {
+        customers = await listAll(STORES.parties);
+        customers = customers.filter(p => p.type === "customer" || p.type === "both");
+      } catch (e) {
+        customers = [];
+      }
+      try {
+        warehouses = await listAll(STORES.warehouses);
+      } catch (e) {
+        warehouses = [];
+      }
+
+      ui.customerSelect.innerHTML =
+        '<option value="">-- اختر --</option>' +
+        customers.map(c => `<option value="${c.id}">${esc(c.nameAr || c.name)}</option>`).join("");
+
+      ui.warehouseSelect.innerHTML =
+        '<option value="">-- اختر --</option>' +
+        warehouses.map(w => `<option value="${w.id}">${esc(w.name)}</option>`).join("");
+    }
+
+    // إنشاء فاتورة جديدة
+    async function newInvoice() {
+      const docId = uuid();
+
+      const doc = {
+        id: docId,
+        serverId: null,
+        deviceId,
+        version: 1,
+        syncStatus: "pending",
+        docType: "sales_invoice",
+        tempNumber: tempNumber(),
+        docNumber: null,
+        seriesKey: "INV",
+        date: nowIsoDate(),
+        dueDate: "",
+        partyId: "",
+        warehouseId: "",
+        currency: "USD",
+        exchangeRate: 1,
+        status: "draft",
+        locked: false,
+        postedAt: null,
+        postedBy: null,
+        notes: "",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await upsertDocument(doc);
+      currentInvoiceId = docId;
+
+      // سطر افتراضي
+      const line = {
+        id: uuid(),
+        docId,
+        lineNo: 1,
+        itemId: null,
+        description: "",
+        qty: 1,
+        unitPriceDoc: 0,
+        taxRate: 15,
+        totalDoc: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        version: 1,
+        syncStatus: "pending",
+        deviceId,
+      };
+
+      await upsertLines([line]);
+
+      await loadInvoiceToUI();
+      await renderItems();
+      toast("تم إنشاء فاتورة جديدة");
+    }
+
+    // تحميل الفاتورة للواجهة
+    async function loadInvoiceToUI() {
+      if (!currentInvoiceId) return;
+      const doc = await getDocument(currentInvoiceId);
+      if (!doc) return;
+
+      ui.customerSelect.value = doc.partyId || "";
+      ui.warehouseSelect.value = doc.warehouseId || "";
+      ui.currencySelect.value = doc.currency || "USD";
+      ui.exchangeRate.value = doc.exchangeRate || 1;
+      ui.issueDate.value = doc.date || nowIsoDate();
+      ui.dueDate.value = doc.dueDate || "";
+      ui.notes.value = doc.notes || "";
+    }
+
+    // رسم البنود
+    async function renderItems() {
+      if (!currentInvoiceId) return;
+      const lines = await listLinesByDocId(currentInvoiceId);
+      lines.sort((a, b) => (a.lineNo || 0) - (b.lineNo || 0));
+
+      let html = "";
+      for (const l of lines) {
+        html += `
+          <tr data-id="${l.id}">
+            <td>${l.lineNo}</td>
+            <td><textarea class="desc" style="min-width:200px">${esc(l.description)}</textarea></td>
+            <td><input class="qty" type="number" min="0" step="1" value="${Number(l.qty || 0)}" style="width:70px"></td>
+            <td><input class="price" type="number" min="0" step="0.01" value="${Number(l.unitPriceDoc || 0)}" style="width:90px"></td>
+            <td><input class="tax" type="number" min="0" step="0.01" value="${Number(l.taxRate || 0)}" style="width:70px"></td>
+            <td class="num total">${money(l.totalDoc)}</td>
+            <td class="noPrint"><button class="btn mini del">🗑️</button></td>
+          </tr>
+        `;
+      }
+
+      ui.itemsBody.innerHTML = html || `<tr><td colspan="7">لا توجد بنود</td></tr>`;
+      recalcTotals();
+    }
+
+    // حساب المجاميع
+    function recalcTotals() {
+      let subtotalDoc = 0, taxDoc = 0;
+
+      const rows = ui.itemsBody.querySelectorAll("tr[data-id]");
+      for (const tr of rows) {
+        const qty = Number(tr.querySelector(".qty")?.value) || 0;
+        const price = Number(tr.querySelector(".price")?.value) || 0;
+        const taxRate = Number(tr.querySelector(".tax")?.value) || 0;
+
+        const lineSub = round2(qty * price);
+        const lineTax = round2(lineSub * taxRate / 100);
+        const lineTotal = round2(lineSub + lineTax);
+
+        tr.querySelector(".total").textContent = money(lineTotal);
+
+        subtotalDoc += lineSub;
+        taxDoc += lineTax;
+      }
+
+      subtotalDoc = round2(subtotalDoc);
+      taxDoc = round2(taxDoc);
+      const grandDoc = round2(subtotalDoc + taxDoc);
+
+      const rate = Number(ui.exchangeRate.value) || 1;
+      const grandBase = round2(grandDoc / rate);
+
+      ui.subtotalDoc.textContent = money(subtotalDoc);
+      ui.taxDoc.textContent = money(taxDoc);
+      ui.grandDoc.textContent = money(grandDoc);
+      ui.grandBase.textContent = money(grandBase);
+    }
+
+    // إضافة سطر
+    async function addLine() {
+      if (!currentInvoiceId) await newInvoice();
+      const lines = await listLinesByDocId(currentInvoiceId);
+      const newLineNo = (lines?.length || 0) + 1;
+
+      const line = {
+        id: uuid(),
+        docId: currentInvoiceId,
+        lineNo: newLineNo,
+        itemId: null,
+        description: "",
+        qty: 1,
+        unitPriceDoc: 0,
+        taxRate: 15,
+        totalDoc: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        version: 1,
+        syncStatus: "pending",
+        deviceId,
+      };
+
+      await upsertLines([line]);
+      await renderItems();
+    }
+
+    // حذف سطر
+    ui.itemsBody.addEventListener("click", async (e) => {
+      if (!e.target.classList.contains("del")) return;
+      const tr = e.target.closest("tr");
+      const lineId = tr?.dataset?.id;
+      if (!lineId) return;
+
+      if (!confirm("حذف السطر؟")) return;
+
+      const lines = await listLinesByDocId(currentInvoiceId);
+      const filtered = lines.filter(l => l.id !== lineId);
+
+      // إعادة ترقيم
+      filtered.forEach((l, idx) => { l.lineNo = idx + 1; });
+
+      await upsertLines(filtered);
+      await renderItems();
+    });
+
+    // حفظ (مسودة / اعتماد)
+    async function saveInvoice(status) {
+      if (!currentInvoiceId) return toast("لا توجد فاتورة", "error");
+      const doc = await getDocument(currentInvoiceId);
+      if (!doc) return toast("الفاتورة غير موجودة", "error");
+
+      doc.partyId = ui.customerSelect.value;
+      doc.warehouseId = ui.warehouseSelect.value;
+      doc.currency = ui.currencySelect.value;
+      doc.exchangeRate = Number(ui.exchangeRate.value) || 1;
+      doc.date = ui.issueDate.value || nowIsoDate();
+      doc.dueDate = ui.dueDate.value || "";
+      doc.notes = ui.notes.value || "";
+      doc.status = status;
+      doc.updatedAt = Date.now();
+      doc.version = (doc.version || 0) + 1;
+      doc.syncStatus = "pending";
+
+      await upsertDocument(doc);
+
+      // ✅ تحديث البنود بدون getLineById
+      const allLines = await listLinesByDocId(currentInvoiceId);
+      const map = new Map(allLines.map(l => [l.id, l]));
+
+      const rows = ui.itemsBody.querySelectorAll("tr[data-id]");
+      const linesToSave = [];
+
+      for (const tr of rows) {
+        const lineId = tr.dataset.id;
+        const line = map.get(lineId);
+        if (!line) continue;
+
+        line.description = tr.querySelector(".desc")?.value || "";
+        line.qty = Number(tr.querySelector(".qty")?.value) || 0;
+        line.unitPriceDoc = Number(tr.querySelector(".price")?.value) || 0;
+        line.taxRate = Number(tr.querySelector(".tax")?.value) || 0;
+
+        const sub = round2(line.qty * line.unitPriceDoc);
+        const tax = round2(sub * line.taxRate / 100);
+        line.totalDoc = round2(sub + tax);
+
+        line.updatedAt = Date.now();
+        line.version = (line.version || 0) + 1;
+        line.syncStatus = "pending";
+
+        linesToSave.push(line);
+      }
+
+      await upsertLines(linesToSave);
+
+      // queue
+      try {
+        await enqueueChange("documents", doc.id, "update", null);
+        for (const l of linesToSave) {
+          await enqueueChange("documentLines", l.id, "update", null);
+        }
+      } catch (e) {
+        // لو syncQueue غير موجودة، لا مشكلة
+      }
+
+      recalcTotals();
+      toast(`تم حفظ الفاتورة كـ ${status === "draft" ? "مسودة" : "معتمدة"}`);
+    }
+
+    // طباعة
+    async function printInvoice() {
+      if (!currentInvoiceId) return toast("لا توجد فاتورة", "error");
+      const doc = await getDocument(currentInvoiceId);
+      const lines = await listLinesByDocId(currentInvoiceId);
+
+      const grand = Number(ui.grandDoc.textContent) || 0;
+      const grandBase = Number(ui.grandBase.textContent) || 0;
+
+      const rows = lines.map((l, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${esc(l.description)}</td>
+          <td class="num">${Number(l.qty || 0)}</td>
+          <td class="num">${money(l.unitPriceDoc)}</td>
+          <td class="num">${money(l.totalDoc)}</td>
+        </tr>
+      `).join("");
+
+      const html = `<!DOCTYPE html>
+<html dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>فاتورة بيع</title>
+<style>
+  body{font-family:sans-serif;margin:2cm}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #ddd;padding:8px;text-align:right}
+  .num{text-align:left;direction:ltr}
+  .totals{margin-top:20px}
+  .footer{margin-top:30px;font-size:12px;color:#666}
+</style>
+</head>
+<body>
+  <h1>فاتورة بيع – ${doc.status === "approved" ? "معتمدة" : "مسودة"}</h1>
+  <p>الرقم المؤقت: ${esc(doc.tempNumber)}<br>التاريخ: ${esc(doc.date || "")}</p>
+  <table>
+    <thead>
+      <tr><th>#</th><th>الوصف</th><th class="num">الكمية</th><th class="num">السعر</th><th class="num">الإجمالي</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals">
+    <div class="num">الإجمالي بعملة المستند: ${money(grand)}</div>
+    <div class="num">الإجمالي (USD): ${money(grandBase)}</div>
+  </div>
+  <div class="footer">هذه فاتورة ${doc.status === "approved" ? "معتمدة" : "غير معتمدة"}.</div>
+</body>
+</html>`;
+
+      // افتح نافذة للطباعة
+      const w = window.open("", "_blank");
+      if (!w) return toast("منع المتصفح فتح نافذة الطباعة", "error");
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      w.print();
+      w.close();
+    }
+
+    // ترحيل (اختياري – يحتاج API)
+    async function postInvoice() {
+      if (!currentInvoiceId) return toast("لا توجد فاتورة", "error");
+      const doc = await getDocument(currentInvoiceId);
+      if (doc.status !== "approved") return toast("يجب اعتماد الفاتورة أولاً", "error");
+      if (!navigator.onLine) return toast("لا يمكن الترحيل بدون إنترنت", "error");
+
+      // إذا ما عندك API سيرفر، خليها تنبيه فقط
+      if (typeof authFetch !== "function") {
+        return toast("لا يوجد API للتــرحيل الآن (تحتاج سيرفر).", "error");
+      }
+
+      try {
+        const res = await authFetch(`/api/post/sales-invoice/${currentInvoiceId}`, { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || "فشل الترحيل");
+        toast(`تم الترحيل ✅ رقم الفاتورة: ${data.docNumber || ""}`);
+      } catch (err) {
+        toast(`خطأ: ${err.message}`, "error");
+      }
+    }
+
+    // أحداث
+    ui.btnNew.addEventListener("click", newInvoice);
+    ui.btnAddLine.addEventListener("click", addLine);
+    ui.itemsBody.addEventListener("input", recalcTotals);
+    ui.exchangeRate.addEventListener("input", recalcTotals);
+
+    ui.btnSaveDraft.addEventListener("click", () => saveInvoice("draft"));
+    ui.btnApprove.addEventListener("click", () => saveInvoice("approved"));
+    ui.btnPost.addEventListener("click", postInvoice);
+    ui.btnPrint.addEventListener("click", printInvoice);
+
+    // ✅ زر رجوع لمسار صحيح
+    ui.btnBack.addEventListener("click", () => {
+      window.location.href = "../index.html";
+    });
+
+    // تشغيل
+    (async function init() {
+      await loadLists();
+      await newInvoice();
+    })();
+  </script>
+</body>
+</html>
